@@ -42,7 +42,7 @@ const chatBodySchema = z.object({
 
 export type ChatRequestBody = z.infer<typeof chatBodySchema>;
 
-export function chatHandler(req: Request, res: Response): void {
+export async function chatHandler(req: Request, res: Response): Promise<void> {
   const requestId = uuidv4();
   const startTime = Date.now();
 
@@ -112,87 +112,83 @@ export function chatHandler(req: Request, res: Response): void {
     ...(body.temperature !== undefined && { temperature: body.temperature }),
     ...(body.max_tokens !== undefined && { max_tokens: body.max_tokens }),
   };
-    adapter
-    .chat(chatReq)
-    .then((result) => {
-      const latencyMs = Date.now() - startTime;
 
-      const usage = result.usage
-        ? {
-            prompt_tokens: result.usage.prompt_tokens ?? null,
-            completion_tokens: result.usage.completion_tokens ?? null,
-            total_tokens: result.usage.total_tokens ?? null,
-          }
-        : { prompt_tokens: null, completion_tokens: null, total_tokens: null };
+  try {
+    const result = await adapter.chat(chatReq);
+    const latencyMs = Date.now() - startTime;
 
-      const upstream = result.upstream_log ?? getUpstreamInfoFromAdapter(adapter, model);
-      const upstreamModelSent = upstream?.model_sent ?? "";
+    const usage = result.usage
+      ? {
+          prompt_tokens: result.usage.prompt_tokens ?? null,
+          completion_tokens: result.usage.completion_tokens ?? null,
+          total_tokens: result.usage.total_tokens ?? null,
+        }
+      : { prompt_tokens: null, completion_tokens: null, total_tokens: null };
 
-      if (PHASE1_MODELS.has(model) && !upstreamModelSent) {
-        logger.warn(
-          { request_id: requestId, model, upstream_model_sent: upstreamModelSent },
-          "Phase-1 model has empty upstream_model_sent; verify upstream switching"
-        );
-      }
+    const upstream = result.upstream_log ?? getUpstreamInfoFromAdapter(adapter, model);
+    const upstreamModelSent = upstream?.model_sent ?? "";
 
-      logger.info(
-        { request_id: requestId, model, latency_ms: latencyMs },
-        "Chat completed"
+    if (PHASE1_MODELS.has(model) && !upstreamModelSent) {
+      logger.warn(
+        { request_id: requestId, model, upstream_model_sent: upstreamModelSent },
+        "Phase-1 model has empty upstream_model_sent; verify upstream switching"
       );
+    }
 
-      const lastUserMsg = [...body.messages].reverse().find((m) => m.role === "user")?.content;
-      appendChatAudit({
-        timestamp: new Date().toISOString(),
-        request_id: requestId,
-        model,
-        messages: body.messages,
-        ...(lastUserMsg !== undefined && { last_user_message: lastUserMsg }),
-        latency_ms: latencyMs,
-        requested_model: model,
-        ...(upstream && {
-          upstream_base_url: upstream.base_url,
-          upstream_model_sent: upstream.model_sent,
-        }),
-      });
+    logger.info({ request_id: requestId, model, latency_ms: latencyMs }, "Chat completed");
 
-      res.json({
-        request_id: requestId,
-        model,
-        reply: result.reply,
-        latency_ms: latencyMs,
-        usage,
-        error: null,
-      });
-    })
-    .catch((err) => {
-      const latencyMs = Date.now() - startTime;
-      const message = err instanceof Error ? err.message : "Adapter error";
-      const code = hasErrorCode(err) ? err.code : "ADAPTER_ERROR";
-
-      logger.error({ request_id: requestId, model, err }, "Adapter error");
-
-      const upstream = getUpstreamInfoFromAdapter(adapter, model);
-      appendChatAudit({
-        timestamp: new Date().toISOString(),
-        request_id: requestId,
-        model,
-        messages: body.messages,
-        latency_ms: latencyMs,
-        error_code: code,
-        requested_model: model,
-        ...(upstream && {
-          upstream_base_url: upstream.base_url,
-          upstream_model_sent: upstream.model_sent,
-        }),
-      });
-
-      res.status(500).json({
-        request_id: requestId,
-        model,
-        reply: "",
-        latency_ms: latencyMs,
-        usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null },
-        error: { message, code },
-      });
+    const lastUserMsg = [...body.messages].reverse().find((m) => m.role === "user")?.content;
+    appendChatAudit({
+      timestamp: new Date().toISOString(),
+      request_id: requestId,
+      model,
+      messages: body.messages,
+      ...(lastUserMsg !== undefined && { last_user_message: lastUserMsg }),
+      latency_ms: latencyMs,
+      requested_model: model,
+      ...(upstream && {
+        upstream_base_url: upstream.base_url,
+        upstream_model_sent: upstream.model_sent,
+      }),
     });
+
+    res.json({
+      request_id: requestId,
+      model,
+      reply: result.reply,
+      latency_ms: latencyMs,
+      usage,
+      error: null,
+    });
+  } catch (err) {
+    const latencyMs = Date.now() - startTime;
+    const message = err instanceof Error ? err.message : "Adapter error";
+    const code = hasErrorCode(err) ? err.code : "ADAPTER_ERROR";
+
+    logger.error({ request_id: requestId, model, err }, "Adapter error");
+
+    const upstream = getUpstreamInfoFromAdapter(adapter, model);
+    appendChatAudit({
+      timestamp: new Date().toISOString(),
+      request_id: requestId,
+      model,
+      messages: body.messages,
+      latency_ms: latencyMs,
+      error_code: code,
+      requested_model: model,
+      ...(upstream && {
+        upstream_base_url: upstream.base_url,
+        upstream_model_sent: upstream.model_sent,
+      }),
+    });
+
+    res.status(500).json({
+      request_id: requestId,
+      model,
+      reply: "",
+      latency_ms: latencyMs,
+      usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null },
+      error: { message, code },
+    });
+  }
 }

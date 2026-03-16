@@ -26,14 +26,14 @@ const createLlamaAdapter = (config?: LlamaCppConfig) => () =>
 // 1) llama3.1-8b-instruct
 // 2) qwen2.5-7b-instruct
 // 3) mistral-7b-instruct
-// 4) phi-3-mini-instruct
+// 4) phi-3.5-mini-instruct
 
 adapters.set("groq-llama3-70b", () => new GroqAdapter({ upstreamModel: "llama-3.3-70b-versatile" }));
 
 adapters.set("llama3.1-8b-instruct", createLlamaAdapter());
 adapters.set("qwen2.5-7b-instruct", createLlamaAdapter());
 adapters.set("mistral-7b-instruct", createLlamaAdapter());
-adapters.set("phi-3-mini-instruct", createLlamaAdapter());
+adapters.set("phi-3.5-mini-instruct", createLlamaAdapter());
 
 /**
  * Get the adapter for a given model name.
@@ -59,6 +59,6 @@ export function listModels(): string[] {
     "llama3.1-8b-instruct",
     "qwen2.5-7b-instruct",
     "mistral-7b-instruct",
-    "phi-3-mini-instruct",
+    "phi-3.5-mini-instruct",
   ];
 }
