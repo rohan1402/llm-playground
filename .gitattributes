@@ -1,0 +1,9 @@
+# Tell GitHub Linguist to exclude the notebook from language stats.
+# The notebook is analysis/documentation — embedded chart images make it
+# appear as 85%+ of the codebase by byte count.
+analysis/*.ipynb linguist-documentation=true
+
+# Lock files are auto-excluded by Linguist but listed here for clarity
+package-lock.json linguist-generated=true
+server/package-lock.json linguist-generated=true
+web/package-lock.json linguist-generated=true
