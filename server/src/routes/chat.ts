@@ -38,6 +38,7 @@ const chatBodySchema = z.object({
   ),
   temperature: z.number().optional(),
   max_tokens: z.number().optional(),
+  stream: z.boolean().optional(),
 });
 
 export type ChatRequestBody = z.infer<typeof chatBodySchema>;
@@ -105,7 +106,6 @@ export async function chatHandler(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // Call adapter (adapter error -> 500)
   const chatReq = {
     model: body.model,
     messages: body.messages,
@@ -113,6 +113,44 @@ export async function chatHandler(req: Request, res: Response): Promise<void> {
     ...(body.max_tokens !== undefined && { max_tokens: body.max_tokens }),
   };
 
+  // ── Streaming path ──────────────────────────────────────────────────────
+  if (body.stream && typeof adapter.chatStream === "function") {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    let fullReply = "";
+    try {
+      for await (const token of adapter.chatStream(chatReq)) {
+        fullReply += token;
+        res.write(`data: ${JSON.stringify({ token })}\n\n`);
+      }
+      const latencyMs = Date.now() - startTime;
+      res.write(`data: ${JSON.stringify({ done: true, latency_ms: latencyMs })}\n\n`);
+      res.end();
+
+      const lastUserMsg = [...body.messages].reverse().find((m) => m.role === "user")?.content;
+      appendChatAudit({
+        timestamp: new Date().toISOString(),
+        request_id: requestId,
+        model,
+        messages: body.messages,
+        ...(lastUserMsg !== undefined && { last_user_message: lastUserMsg }),
+        latency_ms: latencyMs,
+        requested_model: model,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Stream error";
+      const code = hasErrorCode(err) ? err.code : "STREAM_ERROR";
+      logger.error({ request_id: requestId, model, err }, "Stream error");
+      res.write(`data: ${JSON.stringify({ error: message, code })}\n\n`);
+      res.end();
+    }
+    return;
+  }
+
+  // ── Non-streaming path (eval scripts + RAG unaffected) ──────────────────
   try {
     const result = await adapter.chat(chatReq);
     const latencyMs = Date.now() - startTime;

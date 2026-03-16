@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { fetchModels, fetchUpstreamStatus, sendChat, type ChatMessage, type ChatResponse, type UpstreamStatus } from "./api";
+import { fetchModels, fetchUpstreamStatus, sendChatStream, type ChatMessage, type ChatResponse, type UpstreamStatus } from "./api";
 import "./App.css";
 
 function App() {
@@ -58,17 +58,38 @@ function App() {
     setError(null);
     setLastResponse(null);
 
+    // Add an empty assistant message that we'll fill token-by-token
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
     try {
-      const res = await sendChat({
-        model,
-        messages: nextMessages,
-        temperature,
-        max_tokens: maxTokens,
-      });
-      setLastResponse(res);
-      setMessages((prev) => [...prev, { role: "assistant", content: res.reply }]);
+      for await (const event of sendChatStream({ model, messages: nextMessages, temperature, max_tokens: maxTokens })) {
+        if (event.error) {
+          setError(event.error);
+          // Remove the empty assistant message on error
+          setMessages((prev) => prev.slice(0, -1));
+          break;
+        }
+        if (event.token) {
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (!last || last.role !== "assistant") return prev;
+            return [...prev.slice(0, -1), { ...last, content: last.content + event.token }];
+          });
+        }
+        if (event.done) {
+          setLastResponse({
+            request_id: "",
+            model,
+            reply: "",
+            latency_ms: event.latency_ms ?? 0,
+            usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null },
+            error: null,
+          });
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Request failed");
+      setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);
     }

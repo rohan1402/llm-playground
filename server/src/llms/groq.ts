@@ -4,6 +4,7 @@
  */
 
 import type { ChatRequest, ChatResponse, LLMAdapter } from "./base";
+import { parseOpenAIStream } from "../utils/sseParser";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -146,5 +147,48 @@ export class GroqAdapter implements LLMAdapter {
       usage: Object.keys(usage ?? {}).length > 0 ? usage : null,
       upstream_log: { base_url: GROQ_API_URL, model_sent: this.upstreamModel },
     };
+  }
+
+  async *chatStream(req: ChatRequest): AsyncGenerator<string, void, unknown> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    const body = {
+      model: this.upstreamModel,
+      messages: req.messages,
+      temperature: req.temperature ?? 0.2,
+      max_tokens: req.max_tokens ?? 512,
+      stream: true,
+    };
+
+    let response: Response;
+    try {
+      response = await fetch(GROQ_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new GroqApiError(`Groq request timed out after ${this.timeoutMs}ms`, "GROQ_TIMEOUT");
+      }
+      throw new GroqApiError(
+        err instanceof Error ? err.message : "Failed to reach Groq API",
+        "GROQ_UNREACHABLE"
+      );
+    }
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const preview = (await response.text()).slice(0, 300).replace(/\n/g, " ");
+      throw new GroqApiError(`Groq API returned ${response.status}: ${preview}`, "GROQ_BAD_RESPONSE");
+    }
+
+    yield* parseOpenAIStream(response.body);
   }
 }

@@ -28,4 +28,5 @@ export interface ChatResponse {
 
 export interface LLMAdapter {
   chat(req: ChatRequest): Promise<ChatResponse>;
+  chatStream?(req: ChatRequest): AsyncGenerator<string, void, unknown>;
 }

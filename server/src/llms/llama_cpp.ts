@@ -4,6 +4,7 @@
  */
 
 import type { ChatRequest, ChatResponse, LLMAdapter } from "./base";
+import { parseOpenAIStream } from "../utils/sseParser";
 
 /** Optional configuration for LlamaCppAdapter. Overrides env vars when provided. */
 export interface LlamaCppConfig {
@@ -169,5 +170,46 @@ export class LlamaCppAdapter implements LLMAdapter {
       usage: Object.keys(usage ?? {}).length > 0 ? usage : null,
       upstream_log: { base_url: this.baseUrl, model_sent: modelSent },
     };
+  }
+
+  async *chatStream(req: ChatRequest): AsyncGenerator<string, void, unknown> {
+    const url = `${this.baseUrl}/${this.chatPath}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    const body = {
+      model: this.upstreamModelName ?? req.model ?? "local-model",
+      messages: req.messages,
+      temperature: req.temperature ?? DEFAULT_TEMPERATURE,
+      max_tokens: req.max_tokens ?? DEFAULT_MAX_TOKENS,
+      stream: true,
+    };
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new LlamaCppError(`Request timed out after ${this.timeoutMs}ms`, "LLAMA_CPP_TIMEOUT");
+      }
+      throw new LlamaCppError(
+        err instanceof Error ? err.message : "Failed to reach llama.cpp server",
+        "LLAMA_CPP_UNREACHABLE"
+      );
+    }
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const preview = (await response.text()).slice(0, 200).replace(/\n/g, " ");
+      throw new LlamaCppError(`llama.cpp server returned ${response.status}: ${preview}`, "LLAMA_CPP_BAD_RESPONSE");
+    }
+
+    yield* parseOpenAIStream(response.body);
   }
 }

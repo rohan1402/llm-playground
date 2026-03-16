@@ -13,4 +13,12 @@ export class DummyAdapter implements LLMAdapter {
       usage: null,
     };
   }
+
+  async *chatStream(_req: ChatRequest): AsyncGenerator<string, void, unknown> {
+    const words = "This is a placeholder response from the dummy model.".split(" ");
+    for (const word of words) {
+      yield word + " ";
+      await new Promise((r) => setTimeout(r, 40));
+    }
+  }
 }
