@@ -1,0 +1,257 @@
+{
+  "deepseek-v3.2-7b-instruct": {
+    "overall_accuracy": 0.46,
+    "prompts_scored": 14,
+    "per_category": {
+      "conciseness": {
+        "accuracy": 0.5,
+        "avg_latency_ms": 36366,
+        "n": 1
+      },
+      "context_discipline": {
+        "accuracy": 0.67,
+        "avg_latency_ms": 48623,
+        "n": 3
+      },
+      "format_control": {
+        "accuracy": 0.5,
+        "avg_latency_ms": 13469,
+        "n": 1
+      },
+      "hallucination": {
+        "accuracy": 0,
+        "avg_latency_ms": 53014,
+        "n": 1
+      },
+      "instruction_following": {
+        "accuracy": 0.5,
+        "avg_latency_ms": 16812,
+        "n": 1
+      },
+      "instruction_persistence": {
+        "accuracy": 0,
+        "avg_latency_ms": 32068,
+        "n": 1
+      },
+      "reasoning": {
+        "accuracy": 0.5,
+        "avg_latency_ms": 33940,
+        "n": 4
+      },
+      "safety": {
+        "accuracy": 0,
+        "avg_latency_ms": 53243,
+        "n": 1
+      },
+      "structure": {
+        "accuracy": 1,
+        "avg_latency_ms": 51960,
+        "n": 1
+      }
+    }
+  },
+  "llama3.1-8b-instruct": {
+    "overall_accuracy": 0.86,
+    "prompts_scored": 14,
+    "per_category": {
+      "conciseness": {
+        "accuracy": 1,
+        "avg_latency_ms": 2100,
+        "n": 1
+      },
+      "context_discipline": {
+        "accuracy": 0.67,
+        "avg_latency_ms": 1730,
+        "n": 3
+      },
+      "format_control": {
+        "accuracy": 1,
+        "avg_latency_ms": 1424,
+        "n": 1
+      },
+      "hallucination": {
+        "accuracy": 1,
+        "avg_latency_ms": 587,
+        "n": 1
+      },
+      "instruction_following": {
+        "accuracy": 1,
+        "avg_latency_ms": 6369,
+        "n": 1
+      },
+      "instruction_persistence": {
+        "accuracy": 1,
+        "avg_latency_ms": 4939,
+        "n": 1
+      },
+      "reasoning": {
+        "accuracy": 0.75,
+        "avg_latency_ms": 7064,
+        "n": 4
+      },
+      "safety": {
+        "accuracy": 1,
+        "avg_latency_ms": 860,
+        "n": 1
+      },
+      "structure": {
+        "accuracy": 1,
+        "avg_latency_ms": 16448,
+        "n": 1
+      }
+    }
+  },
+  "mistral-7b-instruct": {
+    "overall_accuracy": 0.54,
+    "prompts_scored": 14,
+    "per_category": {
+      "conciseness": {
+        "accuracy": 1,
+        "avg_latency_ms": 3478,
+        "n": 1
+      },
+      "context_discipline": {
+        "accuracy": 0.33,
+        "avg_latency_ms": 9932,
+        "n": 3
+      },
+      "format_control": {
+        "accuracy": 0.5,
+        "avg_latency_ms": 3185,
+        "n": 1
+      },
+      "hallucination": {
+        "accuracy": 0,
+        "avg_latency_ms": 45720,
+        "n": 1
+      },
+      "instruction_following": {
+        "accuracy": 1,
+        "avg_latency_ms": 11678,
+        "n": 1
+      },
+      "instruction_persistence": {
+        "accuracy": 1,
+        "avg_latency_ms": 3850,
+        "n": 1
+      },
+      "reasoning": {
+        "accuracy": 0.75,
+        "avg_latency_ms": 15558,
+        "n": 4
+      },
+      "safety": {
+        "accuracy": 0,
+        "avg_latency_ms": 24305,
+        "n": 1
+      },
+      "structure": {
+        "accuracy": 0,
+        "avg_latency_ms": 17328,
+        "n": 1
+      }
+    }
+  },
+  "phi-3-mini-instruct": {
+    "overall_accuracy": 0.71,
+    "prompts_scored": 14,
+    "per_category": {
+      "conciseness": {
+        "accuracy": 1,
+        "avg_latency_ms": 2068,
+        "n": 1
+      },
+      "context_discipline": {
+        "accuracy": 0.33,
+        "avg_latency_ms": 7543,
+        "n": 3
+      },
+      "format_control": {
+        "accuracy": 1,
+        "avg_latency_ms": 1209,
+        "n": 1
+      },
+      "hallucination": {
+        "accuracy": 0,
+        "avg_latency_ms": 8903,
+        "n": 1
+      },
+      "instruction_following": {
+        "accuracy": 1,
+        "avg_latency_ms": 5442,
+        "n": 1
+      },
+      "instruction_persistence": {
+        "accuracy": 0,
+        "avg_latency_ms": 5121,
+        "n": 1
+      },
+      "reasoning": {
+        "accuracy": 1,
+        "avg_latency_ms": 11204,
+        "n": 4
+      },
+      "safety": {
+        "accuracy": 1,
+        "avg_latency_ms": 24145,
+        "n": 1
+      },
+      "structure": {
+        "accuracy": 1,
+        "avg_latency_ms": 16091,
+        "n": 1
+      }
+    }
+  },
+  "qwen2.5-7b-instruct": {
+    "overall_accuracy": 0.89,
+    "prompts_scored": 14,
+    "per_category": {
+      "conciseness": {
+        "accuracy": 1,
+        "avg_latency_ms": 2198,
+        "n": 1
+      },
+      "context_discipline": {
+        "accuracy": 0.67,
+        "avg_latency_ms": 1236,
+        "n": 3
+      },
+      "format_control": {
+        "accuracy": 1,
+        "avg_latency_ms": 1039,
+        "n": 1
+      },
+      "hallucination": {
+        "accuracy": 1,
+        "avg_latency_ms": 3036,
+        "n": 1
+      },
+      "instruction_following": {
+        "accuracy": 0.5,
+        "avg_latency_ms": 4322,
+        "n": 1
+      },
+      "instruction_persistence": {
+        "accuracy": 1,
+        "avg_latency_ms": 3558,
+        "n": 1
+      },
+      "reasoning": {
+        "accuracy": 1,
+        "avg_latency_ms": 8607,
+        "n": 4
+      },
+      "safety": {
+        "accuracy": 1,
+        "avg_latency_ms": 3923,
+        "n": 1
+      },
+      "structure": {
+        "accuracy": 1,
+        "avg_latency_ms": 12872,
+        "n": 1
+      }
+    }
+  }
+}
