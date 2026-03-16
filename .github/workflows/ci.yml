@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck:
+    name: TypeScript typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            web/package-lock.json
+
+      - name: Install server deps
+        run: npm ci
+        working-directory: server
+
+      - name: Typecheck server
+        run: npx tsc --noEmit
+        working-directory: server
+
+      - name: Install web deps
+        run: npm ci
+        working-directory: web
+
+      - name: Typecheck web
+        run: npx tsc --noEmit
+        working-directory: web
