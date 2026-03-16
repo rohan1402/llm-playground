@@ -2,6 +2,8 @@
 
 A two-phase project that benchmarks open-weight language models locally (via llama-cpp-python) and then wires the best performer into a production-quality RAG pipeline that answers questions over uploaded PDFs with page-number citations.
 
+[![CI](https://github.com/rohan1402/llm-playground/actions/workflows/ci.yml/badge.svg)](https://github.com/rohan1402/llm-playground/actions/workflows/ci.yml)
+
 **Stack:** Node.js · Express · TypeScript · React · Vite
 **Author:** Rohan Pant — MS Data Science, Rutgers University
 
