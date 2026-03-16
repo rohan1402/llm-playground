@@ -1,0 +1,14 @@
+# Python dependencies for local LLM inference
+# Install with: pip install -r requirements.txt
+
+# llama-cpp-python: OpenAI-compatible local inference server for GGUF models
+# For GPU acceleration (Metal on Apple Silicon):
+#   CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python
+# For CUDA:
+#   CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
+llama-cpp-python>=0.3.0
+
+# HTTP server dependency (bundled with llama-cpp-python[server])
+# Uncomment if installing the server extras separately:
+# uvicorn>=0.24.0
+# fastapi>=0.104.0

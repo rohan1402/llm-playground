@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# macOS
+.DS_Store
+
+# GGUF model files (too large for git — download separately)
+*.gguf
+
+# Eval runtime output (keep committed results in eval/ and server/data/eval/)
+# Uncomment to exclude generated eval files:
+# eval/
+# server/data/eval/rag_answers_*.jsonl
+# server/data/eval/rag_results_*.csv
+
+# Uploaded documents (user data — not for version control)
+server/data/uploads/
+server/data/docs/
+
+# TypeScript compiled scripts (keep source, not compiled output)
+server/scripts/*.js
+server/scripts/*.d.ts
+server/scripts/*.js.map
+server/scripts/*.d.ts.map
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Qdrant local data (if running locally)
+qdrant_storage/

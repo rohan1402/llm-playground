@@ -1,0 +1,11 @@
+qid,question,retrieval_hit,citation_valid,latency_ms,cited_pages
+1,"What are some tips for writing strong and concise progress notes?",true,false,34240,""
+2,"How do I replete potassium?",true,false,56453,""
+3,"How do I make follow up appointments for patients at the VA?",true,true,34796,"69;70;68"
+4,"What are some problems associated with using BiPAP?",false,true,39483,"106"
+5,"How long does heroin stay positive in a urine screen?",true,true,47667,"151;152;153"
+6,"What is the phone number for the UH blood bank?",true,true,30946,"91;92"
+7,"What's the steroid dose in a patient with spinal cord compression?",false,true,36472,"88;89"
+8,"What is the best restaurant near Newark?",true,true,32040,""
+9,"How do I set up a Python virtual environment?",true,true,14145,""
+10,"What was the score of last night's basketball game?",true,true,31020,""

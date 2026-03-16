@@ -1,0 +1,293 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.header-meta {
+  margin-bottom: 1rem;
+}
+
+.upstream-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.upstream-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.upstream-dot--connected {
+  background: #22c55e;
+}
+
+.upstream-dot--down {
+  background: #ef4444;
+}
+
+.upstream-model {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upstream-baseurl {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.7rem;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upstream-warning {
+  color: #f59e0b;
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.upstream-error {
+  color: #ef4444;
+  font-size: 0.8rem;
+}
+
+.upstream-loading {
+  opacity: 0.7;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.controls select,
+.controls input[type="number"] {
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 0.9rem;
+}
+
+.controls input[type="number"] {
+  width: 5rem;
+}
+
+.chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 1rem 1.5rem;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.empty {
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  margin: 2rem 0;
+}
+
+.message {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  max-width: 85%;
+}
+
+.message--user {
+  align-self: flex-end;
+  background: rgba(100, 108, 255, 0.25);
+  border: 1px solid rgba(100, 108, 255, 0.4);
+}
+
+.message--assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.message--system {
+  align-self: center;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.85rem;
+}
+
+.message-role {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.35rem;
+  opacity: 0.8;
+}
+
+.message-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.message-loading {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.metrics {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.5rem 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.error {
+  padding: 0.75rem 1rem;
+  background: rgba(255, 80, 80, 0.15);
+  border: 1px solid rgba(255, 80, 80, 0.4);
+  border-radius: 6px;
+  color: #ff6b6b;
+  font-size: 0.9rem;
+}
+
+.input-form {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.input-form textarea {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-family: inherit;
+  font-size: 1rem;
+  resize: none;
+  min-height: 2.5rem;
+  max-height: 150px;
+}
+
+.input-form textarea:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+.input-form textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.input-form button {
+  padding: 0.75rem 1.5rem;
+  flex-shrink: 0;
+}
+
+@media (prefers-color-scheme: light) {
+  .header {
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .upstream-badge {
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .upstream-model {
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .upstream-baseurl {
+    color: rgba(0, 0, 0, 0.4);
+  }
+
+  .upstream-warning {
+    color: #b45309;
+  }
+
+  .upstream-error {
+    color: #dc2626;
+  }
+
+  .controls select,
+  .controls input[type="number"] {
+    border-color: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .message--user {
+    background: rgba(100, 108, 255, 0.12);
+    border-color: rgba(100, 108, 255, 0.3);
+  }
+
+  .message--assistant {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .message--system {
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  .input-form {
+    border-top-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .input-form textarea {
+    border-color: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .error {
+    background: rgba(255, 80, 80, 0.1);
+    border-color: rgba(255, 80, 80, 0.3);
+    color: #c0392b;
+  }
+}

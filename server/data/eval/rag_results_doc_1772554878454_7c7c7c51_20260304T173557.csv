@@ -1,0 +1,11 @@
+qid,retrieval_hit,citation_valid,latency_ms
+1,true,true,1246
+2,true,true,1034
+3,true,true,857
+4,true,true,636
+5,false,true,1047
+6,true,true,935
+7,false,true,1534
+8,false,true,761
+9,true,true,540
+10,false,true,1098
