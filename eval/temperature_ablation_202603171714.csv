@@ -1,0 +1,5 @@
+model,temp_0,temp_0.2,temp_0.7,variance
+llama3.1-8b-instruct,85.7,85.7,85.7,0.0
+mistral-7b-instruct,50.0,46.4,35.7,14.3
+phi-3.5-mini-instruct,71.4,75.0,71.4,3.6
+qwen2.5-7b-instruct,71.4,71.4,85.7,14.3

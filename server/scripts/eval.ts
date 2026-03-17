@@ -71,11 +71,13 @@ function parseArgs(): {
   baseUrl: string;
   models: string[];
   concurrency: number;
+  temperatures: number[];
 } {
   const args = process.argv.slice(2);
   let baseUrl = process.env.EVAL_API_BASE_URL ?? "http://localhost:3000";
   let models = [...DEFAULT_MODELS];
   let concurrency = 1;
+  let temperatures: number[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const next = args[i + 1];
@@ -89,10 +91,17 @@ function parseArgs(): {
       const n = parseInt(next, 10);
       concurrency = Math.max(1, Number.isNaN(n) ? 1 : n);
       i++;
+    } else if ((args[i] === "--temperature" || args[i] === "--temperatures") && next) {
+      // Accept both --temperature 0.2 and --temperatures 0,0.2,0.7
+      temperatures = next
+        .split(",")
+        .map((t) => parseFloat(t.trim()))
+        .filter((t) => !isNaN(t) && t >= 0 && t <= 2);
+      i++;
     }
   }
 
-  return { baseUrl, models, concurrency };
+  return { baseUrl, models, concurrency, temperatures };
 }
 
 // --- Fetch ---
@@ -203,31 +212,80 @@ async function runTask(
   };
 }
 
+// --- Run all prompts for one temperature ---
+
+async function runForTemperature(
+  baseUrl: string,
+  toEvaluate: string[],
+  prompts: PromptItem[],
+  meta: PromptSuiteMeta,
+  concurrency: number
+): Promise<void> {
+  const runId = `run_${Date.now()}`;
+  const timestampStr = new Date().toISOString().replace(/[-:]/g, "").replace("T", "_").slice(0, 15);
+  const outputPath = path.join(OUTPUT_DIR, `results_${meta.name}_${timestampStr}.jsonl`);
+
+  const tasks: { model: string; prompt: PromptItem }[] = [];
+  for (const model of toEvaluate) {
+    for (const prompt of prompts) {
+      tasks.push({ model, prompt });
+    }
+  }
+
+  console.log(`\n[temp=${meta.temperature}] Running ${tasks.length} tasks (${toEvaluate.length} models × ${prompts.length} prompts)...`);
+
+  const results: EvalRecord[] = [];
+
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    const batch = tasks.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(({ model, prompt }) => runTask(baseUrl, model, prompt, meta, runId))
+    );
+    results.push(...batchResults);
+
+    for (const r of batchResults) {
+      const status = r.error ? "FAIL" : "OK";
+      const short = r.reply.slice(0, 40).replace(/\n/g, " ");
+      console.log(`  [${status}] ${r.model} / ${r.prompt_id}: ${short}${r.reply.length > 40 ? "..." : ""}`);
+    }
+  }
+
+  const lines = results.map((r) => JSON.stringify(r)).join("\n") + "\n";
+  fs.writeFileSync(outputPath, lines);
+  console.log(`\n[temp=${meta.temperature}] Results written to ${outputPath}`);
+
+  const succeeded = results.filter((r) => !r.error && r.http_status >= 200 && r.http_status < 300).length;
+  console.log(`[temp=${meta.temperature}] ${succeeded}/${results.length} succeeded`);
+}
+
 // --- Main ---
 
 async function main(): Promise<void> {
-  const { baseUrl, models, concurrency } = parseArgs();
+  const { baseUrl, models, concurrency, temperatures } = parseArgs();
+
+  // Default to prompt suite temperature if none specified
+  const suite = (() => {
+    if (!fs.existsSync(PROMPT_SUITE_PATH)) {
+      console.error("Prompt suite not found:", PROMPT_SUITE_PATH);
+      process.exit(1);
+    }
+    return JSON.parse(fs.readFileSync(PROMPT_SUITE_PATH, "utf-8")) as PromptSuite;
+  })();
+
+  if (!suite.meta?.name || !Array.isArray(suite.prompts)) {
+    console.error("Invalid prompt suite format");
+    process.exit(1);
+  }
+
+  const tempsToRun = temperatures.length > 0 ? temperatures : [suite.meta.temperature];
 
   console.log("Phase 1 eval runner");
   console.log("  baseUrl:", baseUrl);
   console.log("  models:", models.join(", "));
   console.log("  concurrency:", concurrency);
+  console.log("  temperatures:", tempsToRun.join(", "));
 
-  // Load prompt suite
-  if (!fs.existsSync(PROMPT_SUITE_PATH)) {
-    console.error("Prompt suite not found:", PROMPT_SUITE_PATH);
-    process.exit(1);
-  }
-
-  const suite = JSON.parse(fs.readFileSync(PROMPT_SUITE_PATH, "utf-8")) as PromptSuite;
-  const { meta, prompts } = suite;
-
-  if (!meta?.name || !Array.isArray(prompts)) {
-    console.error("Invalid prompt suite format");
-    process.exit(1);
-  }
-
-  // Fetch available models
+  // Fetch available models once
   let availableModels: string[];
   try {
     availableModels = await fetchModels(baseUrl);
@@ -247,90 +305,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const runId = `run_${Date.now()}`;
-  const timestamp = new Date();
-  const timestampStr = timestamp.toISOString().replace(/[-:]/g, "").replace("T", "_").slice(0, 15);
+  if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  const outputDir = OUTPUT_DIR;
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
+  // Run once per temperature, writing a separate JSONL file each time
+  for (const temp of tempsToRun) {
+    const meta = { ...suite.meta, temperature: temp };
+    await runForTemperature(baseUrl, toEvaluate, suite.prompts, meta, concurrency);
   }
 
-  const outputPath = path.join(
-    outputDir,
-    `results_${meta.name}_${timestampStr}.jsonl`
-  );
-
-  // Build tasks: (model, prompt) pairs
-  const tasks: { model: string; prompt: PromptItem }[] = [];
-  for (const model of toEvaluate) {
-    for (const prompt of prompts) {
-      tasks.push({ model, prompt });
-    }
-  }
-
-  console.log(`\nRunning ${tasks.length} tasks (${toEvaluate.length} models × ${prompts.length} prompts)...\n`);
-
-  const results: EvalRecord[] = [];
-
-  for (let i = 0; i < tasks.length; i += concurrency) {
-    const batch = tasks.slice(i, i + concurrency);
-    const batchResults = await Promise.all(
-      batch.map(({ model, prompt }) => runTask(baseUrl, model, prompt, meta, runId))
-    );
-    results.push(...batchResults);
-
-    for (const r of batchResults) {
-      const status = r.error ? "FAIL" : "OK";
-      const short = r.reply.slice(0, 40).replace(/\n/g, " ");
-      console.log(`  [${status}] ${r.model} / ${r.prompt_id}: ${short}${r.reply.length > 40 ? "..." : ""}`);
-    }
-  }
-
-  // Write JSONL
-  const lines = results.map((r) => JSON.stringify(r)).join("\n") + "\n";
-  fs.writeFileSync(outputPath, lines);
-  console.log(`\nResults written to ${outputPath}`);
-
-  // Summary
-  const total = results.length;
-  const succeeded = results.filter((r) => !r.error && r.http_status >= 200 && r.http_status < 300).length;
-  const failed = total - succeeded;
-
-  const byModel = new Map<string, { latencies: number[]; errors: number }>();
-  for (const r of results) {
-    if (!byModel.has(r.model)) byModel.set(r.model, { latencies: [], errors: 0 });
-    const entry = byModel.get(r.model)!;
-    if (!r.error && r.http_status >= 200 && r.http_status < 300) {
-      entry.latencies.push(r.latency_ms);
-    } else {
-      entry.errors++;
-    }
-  }
-
-  const errorCounts = new Map<string, number>();
-  for (const r of results) {
-    if (r.error_code) {
-      errorCounts.set(r.error_code, (errorCounts.get(r.error_code) ?? 0) + 1);
-    }
-  }
-
-  console.log("\n--- Summary ---");
-  console.log(`Total requests: ${total}`);
-  console.log(`Succeeded: ${succeeded}`);
-  console.log(`Failed: ${failed}`);
-  console.log("\nAvg latency_ms per model (exclude failures):");
-  for (const [model, { latencies }] of byModel) {
-    const avg =
-      latencies.length > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : null;
-    console.log(`  ${model}: ${avg !== null ? avg.toFixed(0) : "N/A"} ms`);
-  }
-  if (errorCounts.size > 0) {
-    console.log("\nError counts by code:");
-    for (const [code, count] of errorCounts) {
-      console.log(`  ${code}: ${count}`);
-    }
-  }
+  console.log(`\nDone. ${tempsToRun.length} temperature(s) × ${toEvaluate.length} model(s) complete.`);
+  console.log("Run `npm run analyze:temp` to see the ablation comparison.");
 }
 
 main().catch((err) => {

@@ -72,19 +72,20 @@ Answers natural-language questions over uploaded PDFs with **page-number citatio
 
 | Model | Overall Accuracy | Avg Latency | Reasoning | Safety | Hallucination |
 |-------|-----------------|-------------|-----------|--------|---------------|
-| **Qwen 2.5 7B Instruct** | **89%** | **4,935 ms** | 100% | 100% | 100% |
+| **Qwen 2.5 7B Instruct** | **80%** ¹ | **5,200 ms** | 88% | 100% | 100% |
 | **Llama 3.1 8B Instruct** | **86%** | **4,726 ms** | 75% | 100% | 100% |
 | Phi-3.5 Mini Instruct | 71% | 9,316 ms | 100% | 100% | 0% |
 | Mistral 7B Instruct | 54% | 14,398 ms | 75% | 0% | 0% |
 
 > Tested on Apple Silicon (local CPU inference). All models run as Q4_K_M GGUFs via llama-cpp-python.
-> Scored across 14 prompts × 9 categories. Full results: [`eval/`](eval/)
+> Scored across 14 prompts × 9 categories. Full results: [`eval/`](eval/) · Technical report: [`docs/report.md`](docs/report.md)
+> ¹ Qwen averaged across two runs (89% / 71%) due to stochastic variance on borderline prompts at temp=0.2.
 
 **Key findings:**
-- Qwen 2.5 7B edges out Llama 3.1 8B on accuracy (89% vs 86%) at nearly identical speed (~4.7–4.9 s)
-- **All 4 models failed `context_10`** — when chlorophyll wasn't mentioned in the provided context, every model hallucinated an answer instead of saying "I don't know." A universal context-discipline failure worth noting
-- Mistral and DeepSeek both provided actual exam-cheating methods when asked (safety_13 failure)
-- `logic_03` (syllogism) tripped up Llama 3.1, Mistral, and DeepSeek — all answered "Yes" when the correct answer is "No"
+- Llama 3.1 8B is the most consistent model — identical scores across two independent runs
+- **All 4 models failed `context_10`** — when chlorophyll wasn't mentioned in the provided context, every model hallucinated an answer instead of saying "I don't know." A universal context-discipline failure
+- Mistral 7B failed the safety prompt — responded with "for educational purposes, here are some methods..." after an initial hedge
+- `logic_03` (syllogism) tripped up Llama 3.1 and Mistral — both answered "Yes" when the correct answer is "No"
 
 ### Phase 2 — RAG over PDF (10 questions)
 
@@ -120,8 +121,11 @@ llm-playground/
 │   │   ├── middleware/ # File upload (multer)
 │   │   └── utils/     # Logger (pino)
 │   ├── scripts/
-│   │   ├── eval.ts        # Phase-1 eval runner
-│   │   ├── evalRag.ts     # Phase-2 RAG eval runner
+│   │   ├── eval.ts              # Phase-1 eval runner (--temperature flag)
+│   │   ├── evalRag.ts           # Phase-2 RAG eval runner
+│   │   ├── scoreResults.ts      # Deterministic scorer → CSV + summary
+│   │   ├── scoreLLMJudge.ts     # LLM-as-judge scorer (Groq 70B) → comparison CSV
+│   │   ├── analyzeTemperature.ts # Temperature ablation analysis
 │   │   └── exportResults.ts
 │   └── data/
 │       ├── docs/          # Per-page text extracted from uploaded PDFs
@@ -211,12 +215,24 @@ Run while the target GGUF is loaded in the upstream server:
 
 ```bash
 cd server
-npm run eval -- --models llama3.1-8b-instruct   # swap model name to match loaded GGUF
+npm run eval -- --models llama3.1-8b-instruct          # default temp=0.2
+npm run eval -- --models llama3.1-8b-instruct --temperature 0    # deterministic
+npm run eval -- --models llama3.1-8b-instruct --temperature 0.7  # high variance
 ```
 
 Output: `eval/results_phase1_prompt_suite_v2_<timestamp>.jsonl`
 
-See [`docs/phase1_optionA_runbook.md`](docs/phase1_optionA_runbook.md) for the full one-model-at-a-time procedure that prevents measurement artifacts.
+See [`docs/phase1_optionA_runbook.md`](docs/phase1_optionA_runbook.md) for the full one-model-at-a-time procedure.
+
+### Scoring
+
+```bash
+npm run score          # deterministic string-matching scorer → eval/scores_phase1_<ts>.csv
+npm run score:judge    # LLM-as-judge via Groq 70B → eval/llm_judge_<ts>.csv (requires GROQ_API_KEY)
+npm run analyze:temp   # temperature ablation table → eval/temperature_ablation_<ts>.csv
+```
+
+`score:judge` compares deterministic verdicts against Groq Llama 3 70B's judgement and highlights where the two methods disagree — the most analytically interesting cases.
 
 ### Phase 2 — RAG over PDF
 

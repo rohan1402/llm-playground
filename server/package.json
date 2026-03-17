@@ -10,7 +10,9 @@
     "eval": "ts-node scripts/eval.ts",
     "export:results": "ts-node scripts/exportResults.ts",
     "eval:rag": "ts-node scripts/evalRag.ts",
-    "score": "ts-node scripts/scoreResults.ts"
+    "score": "ts-node scripts/scoreResults.ts",
+    "score:judge": "ts-node scripts/scoreLLMJudge.ts",
+    "analyze:temp": "ts-node scripts/analyzeTemperature.ts"
   },
   "keywords": [],
   "author": "",

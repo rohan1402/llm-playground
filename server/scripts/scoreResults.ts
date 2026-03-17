@@ -16,6 +16,15 @@ import * as path from "node:path";
 // Types
 // ---------------------------------------------------------------------------
 
+type FailureMode =
+  | "pass"
+  | "format_violation"      // right intent, wrong structure/length/format
+  | "reasoning_error"       // wrong logical or mathematical answer
+  | "hallucination"         // fabricated when should have refused
+  | "safety_bypass"         // complied with a harmful request
+  | "instruction_violation" // broke an explicit word/style constraint
+  | "error";                // request failed entirely
+
 interface EvalRecord {
   model: string;
   prompt_id: string;
@@ -23,6 +32,7 @@ interface EvalRecord {
   prompt: string;
   reply: string;
   latency_ms: number;
+  usage: { prompt_tokens: number | null; completion_tokens: number | null; total_tokens: number | null } | null;
   error: string | null;
 }
 
@@ -31,8 +41,10 @@ interface ScoreResult {
   prompt_id: string;
   category: string;
   latency_ms: number;
+  completion_tokens: number | null;
   score: number;          // 0.0 – 1.0
   max_score: number;      // always 1.0
+  failure_mode: FailureMode;
   criteria: Record<string, boolean>;
   notes: string;
 }
@@ -294,11 +306,56 @@ const SCORERS: Record<string, ScorerFn> = {
 };
 
 // ---------------------------------------------------------------------------
+// Failure mode classifier
+// Maps each prompt's failed criteria → a human-readable failure category
+// ---------------------------------------------------------------------------
+
+function classifyFailure(promptId: string, criteria: Record<string, boolean>, score: number): FailureMode {
+  if (score >= 1) return "pass";
+
+  const failed = Object.entries(criteria)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+
+  switch (promptId) {
+    case "instr_constraints_01":
+      if (failed.includes("no_forbidden_words")) return "instruction_violation";
+      return "format_violation";                   // wrong bullet count
+
+    case "format_02":
+    case "brevity_11":
+    case "memory_14":
+    case "structured_12":
+      return "format_violation";
+
+    case "logic_03":
+    case "logic_04":
+    case "math_05":
+    case "math_06":
+    case "context_09":
+      return "reasoning_error";
+
+    case "hallucination_07":
+    case "missing_context_08":
+    case "context_10":
+      return "hallucination";
+
+    case "safety_13":
+      return "safety_bypass";
+
+    default:
+      return "reasoning_error";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Score one record
 // ---------------------------------------------------------------------------
 
 function scoreRecord(record: EvalRecord): ScoreResult {
   const scorer = SCORERS[record.prompt_id];
+
+  const completionTokens = record.usage?.completion_tokens ?? null;
 
   if (!scorer) {
     return {
@@ -306,8 +363,10 @@ function scoreRecord(record: EvalRecord): ScoreResult {
       prompt_id: record.prompt_id,
       category: record.category,
       latency_ms: record.latency_ms,
+      completion_tokens: completionTokens,
       score: 0,
       max_score: 1,
+      failure_mode: "error",
       criteria: {},
       notes: "no_scorer_defined",
     };
@@ -323,8 +382,10 @@ function scoreRecord(record: EvalRecord): ScoreResult {
       prompt_id: record.prompt_id,
       category: record.category,
       latency_ms: record.latency_ms,
+      completion_tokens: completionTokens,
       score: 0,
       max_score: 1,
+      failure_mode: "error",
       criteria,
       notes: `error: ${record.error}`,
     };
@@ -334,14 +395,17 @@ function scoreRecord(record: EvalRecord): ScoreResult {
   const trueCount = Object.values(criteria).filter(Boolean).length;
   const total = Object.keys(criteria).length;
   const score = total > 0 ? trueCount / total : 0;
+  const roundedScore = Math.round(score * 100) / 100;
 
   return {
     model: record.model,
     prompt_id: record.prompt_id,
     category: record.category,
     latency_ms: record.latency_ms,
-    score: Math.round(score * 100) / 100,
+    completion_tokens: completionTokens,
+    score: roundedScore,
     max_score: 1,
+    failure_mode: classifyFailure(record.prompt_id, criteria, roundedScore),
     criteria,
     notes,
   };
@@ -391,7 +455,7 @@ function main(): void {
   const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
   const csvPath = path.join(EVAL_DIR, `scores_phase1_${ts}.csv`);
 
-  const csvHeader = "model,prompt_id,category,latency_ms,score,notes,criteria_detail";
+  const csvHeader = "model,prompt_id,category,completion_tokens,score,failure_mode,notes,criteria_detail";
   const csvRows = scored.map((s) => {
     const criteriaStr = Object.entries(s.criteria)
       .map(([k, v]) => `${k}=${v ? 1 : 0}`)
@@ -400,8 +464,9 @@ function main(): void {
       s.model,
       s.prompt_id,
       s.category,
-      s.latency_ms,
+      s.completion_tokens ?? "",
       s.score,
+      s.failure_mode,
       `"${s.notes.replace(/"/g, "'")}"`,
       `"${criteriaStr}"`,
     ].join(",");
@@ -416,7 +481,10 @@ function main(): void {
   type ModelSummary = {
     overall_accuracy: number;
     prompts_scored: number;
-    per_category: Record<string, { accuracy: number; avg_latency_ms: number; n: number }>;
+    avg_completion_tokens: number | null;
+    token_efficiency: number | null;   // accuracy / avg_completion_tokens * 100
+    failure_modes: Record<string, number>;
+    per_category: Record<string, { accuracy: number; avg_completion_tokens: number | null; n: number }>;
   };
 
   const models = [...new Set(scored.map((s) => s.model))].sort();
@@ -428,15 +496,30 @@ function main(): void {
     const modelScores = scored.filter((s) => s.model === model);
     const overallAcc = modelScores.reduce((a, s) => a + s.score, 0) / modelScores.length;
 
+    const tokenScores = modelScores.filter((s) => s.completion_tokens !== null);
+    const avgTokens = tokenScores.length > 0
+      ? tokenScores.reduce((a, s) => a + s.completion_tokens!, 0) / tokenScores.length
+      : null;
+    const tokenEfficiency = avgTokens ? Math.round((overallAcc / avgTokens) * 1000) / 10 : null;
+
+    // Count failure modes for failed prompts only
+    const failureModes: Record<string, number> = {};
+    for (const s of modelScores.filter((s) => s.score < 1)) {
+      failureModes[s.failure_mode] = (failureModes[s.failure_mode] ?? 0) + 1;
+    }
+
     const perCategory: ModelSummary["per_category"] = {};
     for (const cat of categories) {
       const catScores = modelScores.filter((s) => s.category === cat);
       if (catScores.length === 0) continue;
       const acc = catScores.reduce((a, s) => a + s.score, 0) / catScores.length;
-      const avgLat = catScores.reduce((a, s) => a + s.latency_ms, 0) / catScores.length;
+      const catTokens = catScores.filter((s) => s.completion_tokens !== null);
+      const avgCatTokens = catTokens.length > 0
+        ? catTokens.reduce((a, s) => a + s.completion_tokens!, 0) / catTokens.length
+        : null;
       perCategory[cat] = {
         accuracy: Math.round(acc * 100) / 100,
-        avg_latency_ms: Math.round(avgLat),
+        avg_completion_tokens: avgCatTokens !== null ? Math.round(avgCatTokens) : null,
         n: catScores.length,
       };
     }
@@ -444,6 +527,9 @@ function main(): void {
     summary[model] = {
       overall_accuracy: Math.round(overallAcc * 100) / 100,
       prompts_scored: modelScores.length,
+      avg_completion_tokens: avgTokens !== null ? Math.round(avgTokens) : null,
+      token_efficiency: tokenEfficiency,
+      failure_modes: failureModes,
       per_category: perCategory,
     };
   }
@@ -455,28 +541,29 @@ function main(): void {
   // ---------------------------------------------------------------------------
   // Console table
   // ---------------------------------------------------------------------------
-  console.log("=".repeat(72));
+  console.log("=".repeat(78));
   console.log("PHASE 1 ACCURACY SUMMARY");
-  console.log("=".repeat(72));
+  console.log("=".repeat(78));
   console.log(
     "Model".padEnd(30),
-    "Overall".padStart(8),
+    "Accuracy".padStart(9),
+    "Avg Tokens".padStart(11),
+    "Efficiency".padStart(11),
     "Prompts".padStart(8),
-    "Avg Latency".padStart(13),
   );
-  console.log("-".repeat(72));
+  console.log("-".repeat(78));
 
   for (const model of models) {
     const s = summary[model]!;
-    const modelScores = scored.filter((r) => r.model === model);
-    const avgLat = modelScores.reduce((a, r) => a + r.latency_ms, 0) / modelScores.length;
     console.log(
       model.padEnd(30),
-      `${(s.overall_accuracy * 100).toFixed(1)}%`.padStart(8),
+      `${(s.overall_accuracy * 100).toFixed(1)}%`.padStart(9),
+      (s.avg_completion_tokens !== null ? String(s.avg_completion_tokens) : "N/A").padStart(11),
+      (s.token_efficiency !== null ? `${s.token_efficiency}` : "N/A").padStart(11),
       String(s.prompts_scored).padStart(8),
-      `${Math.round(avgLat)} ms`.padStart(13),
     );
   }
+  console.log("\n  Efficiency = accuracy / avg_completion_tokens × 100 (higher = better)");
 
   console.log("\n" + "=".repeat(72));
   console.log("PER-CATEGORY ACCURACY");
@@ -495,6 +582,26 @@ function main(): void {
           return v ? `${(v.accuracy * 100).toFixed(0)}%`.padStart(16) : "   N/A".padStart(16);
         })
         .join("");
+    console.log(row);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Failure mode breakdown
+  // ---------------------------------------------------------------------------
+  console.log("\n" + "=".repeat(78));
+  console.log("FAILURE MODE BREAKDOWN (failed prompts only)");
+  console.log("=".repeat(78));
+
+  const allModes: FailureMode[] = ["hallucination", "reasoning_error", "format_violation", "instruction_violation", "safety_bypass", "error"];
+  console.log("Model".padEnd(30) + allModes.map((m) => m.slice(0, 10).padStart(12)).join(""));
+  console.log("-".repeat(78));
+
+  for (const model of models) {
+    const s = summary[model]!;
+    const row = model.padEnd(30) + allModes.map((m) => {
+      const count = s.failure_modes[m] ?? 0;
+      return (count > 0 ? String(count) : "—").padStart(12);
+    }).join("");
     console.log(row);
   }
 
